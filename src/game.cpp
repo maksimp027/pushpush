@@ -56,6 +56,16 @@ bool Game::initialize() {
         return false;
     }
     
+    if (!audioManager.initialize()) {
+        cerr << "Failed to initialize audio" << endl;
+        // Продовжуємо без звуку
+    }
+    else {
+        // Завантажуємо звуки
+        audioManager.loadSound("win", "C:\\Users\\Maxim\\Desktop\\iasa\\icn bin ein programist\\KURSACH\\pushpush\\assetst\\sounds\\win.wav");
+        audioManager.loadSound("lose", "C:\\Users\\Maxim\\Desktop\\iasa\\icn bin ein programist\\KURSACH\\pushpush\\assetst\\sounds\\lose.wav");
+        audioManager.loadSound("jump", "C:\\Users\\Maxim\\Desktop\\iasa\\icn bin ein programist\\KURSACH\\pushpush\\assetst\\sounds\\jump.wav");
+    }
     // Завантажуємо список рівнів
     refreshLevelList();
     
@@ -147,37 +157,70 @@ void Game::handleLevelSelectInput(SDL_Event& e) {
 
 void Game::handleGameInput(SDL_Event& e) {
     if (e.type == SDL_EVENT_KEY_DOWN) {
-        switch (e.key.key) {
-        case SDLK_W: case SDLK_UP:
-            currentLevel->movePlayer('w');
-            break;
-        case SDLK_S: case SDLK_DOWN:
-            currentLevel->movePlayer('s');
-            break;
-        case SDLK_A: case SDLK_LEFT:
-            currentLevel->movePlayer('a');
-            break;
-        case SDLK_D: case SDLK_RIGHT:
-            currentLevel->movePlayer('d');
-            break;
-        case SDLK_ESCAPE:
-            currentState = MENU; // Повернення до головного меню
-            break;
-        case SDLK_R: // Перезапуск рівня
-            if (!levelFiles.empty()) {
-                currentLevel->loadLevelFromFile(levelFiles[selectedLevelIndex]);
+        if (currentLevel->isLevelFinished() || currentLevel->isLevelFailed()) {
+            // Якщо рівень вже завершено, дозволяємо тільки перезапуск або вихід
+            switch (e.key.key) {
+            case SDLK_ESCAPE:
+                currentState = MENU; // Повернення до головного меню
+                break;
+            case SDLK_R: // Перезапуск рівня
+                if (!levelFiles.empty()) {
+                    currentLevel->loadLevelFromFile(levelFiles[selectedLevelIndex]);
+                }
+                else {
+                    currentLevel->createDefaultLevel();
+                }
+                currentLevel->reset(); // Скидаємо стан рівня
+                break;
+            case SDLK_F: // Перемикання повноекранного режиму
+                renderer.toggleFullscreen();
+                break;
             }
-            else {
-                currentLevel->createDefaultLevel();
-            }
-            break;
-        case SDLK_F: // Перемикання повноекранного режиму
-            renderer.toggleFullscreen();
-            break;
         }
-        
-        // Перевіряємо умови перемоги чи поразки тут
-        // (Наразі цей код знаходиться в movePlayer методі класу Level)
+        else {
+            // Звичайна обробка для гри
+            switch (e.key.key) {
+            case SDLK_W: case SDLK_UP:
+                audioManager.playSound("jump");
+                currentLevel->movePlayer('w');
+                break;
+            case SDLK_S: case SDLK_DOWN:
+                audioManager.playSound("jump");
+                currentLevel->movePlayer('s');
+                break;
+            case SDLK_A: case SDLK_LEFT:
+                audioManager.playSound("jump");
+                currentLevel->movePlayer('a');
+                break;
+            case SDLK_D: case SDLK_RIGHT:
+                audioManager.playSound("jump");
+                currentLevel->movePlayer('d');
+                break;
+            case SDLK_ESCAPE:
+                currentState = MENU; // Повернення до головного меню
+                break;
+            case SDLK_R: // Перезапуск рівня
+                if (!levelFiles.empty()) {
+                    currentLevel->loadLevelFromFile(levelFiles[selectedLevelIndex]);
+                }
+                else {
+                    currentLevel->createDefaultLevel();
+                }
+                currentLevel->reset(); // Скидаємо стан рівня
+                break;
+            case SDLK_F: // Перемикання повноекранного режиму
+                renderer.toggleFullscreen();
+                break;
+            }
+
+            // Перевіряємо умови перемоги чи поразки після руху
+            if (currentLevel->isLevelFinished()) {
+                audioManager.playSound("win");
+            }
+            else if (currentLevel->isLevelFailed()) {
+                audioManager.playSound("lose");
+            }
+        }
     }
 }
 
@@ -210,11 +253,17 @@ void Game::handleEvents() {
 
 void Game::run() {
     bool quit = false;
-    
+
     while (!quit) {
+        // Отримуємо поточний час для анімацій
+        Uint32 currentTime = SDL_GetTicks();
+
+        // Оновлюємо анімації
+        currentLevel->updateAnimations(currentTime);
+
         // Обробка подій
         handleEvents();
-        
+
         // Відмальовуємо відповідно до поточного стану
         switch (currentState) {
         case MENU:
@@ -227,7 +276,7 @@ void Game::run() {
             renderer.drawLevel(*currentLevel);
             break;
         }
-        
+
         SDL_Delay(16); // Приблизно 60 FPS
     }
 }

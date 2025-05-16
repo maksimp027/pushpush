@@ -1,5 +1,6 @@
 #pragma once
 
+#include "audio.h"
 #include "constants.h"
 #include "level.h"
 #include "renderer.h"
@@ -23,6 +24,7 @@ private:
     // Основні компоненти
     Renderer renderer;
     Level* currentLevel;
+    AudioManager audioManager;
 
 public:
     Game();

@@ -23,22 +23,24 @@ link_directories(
     "${PROJECT_SOURCE_DIR}/external/SDL3_image/lib"
 )
 
-# Список вихідних файлів
+# Додайте новий файл аудіо до списку SOURCES:
 set(SOURCES
     src/main.cpp
     src/game.cpp
     src/level.cpp
     src/renderer.cpp
     src/utils.cpp
+    src/audio.cpp
 )
 
-# Список заголовочних файлів
+# Додайте заголовочний файл аудіо:
 set(HEADERS
     include/constants.h
     include/game.h
     include/level.h
     include/renderer.h
     include/utils.h
+    include/audio.h
 )
 
 # Налаштування бібліотек SDL3
@@ -47,7 +49,7 @@ set(SDL3_TTF_LIB_DIR "${PROJECT_SOURCE_DIR}/external/SDL3_ttf/lib/x64")
 set(SDL3_IMAGE_LIB_DIR "${PROJECT_SOURCE_DIR}/external/SDL3_image/lib/x64")
 
 # Створення виконуваного файлу
-add_executable(pushpush ${SOURCES} ${HEADERS})
+add_executable(pushpush ${SOURCES} ${HEADERS} "include/audio.h")
 
 # Лінкування бібліотек SDL3
 target_link_libraries(pushpush
@@ -85,6 +87,22 @@ add_custom_command(TARGET pushpush POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${PROJECT_SOURCE_DIR}/assetst/DroidSans.ttf"
         "$<TARGET_FILE_DIR:pushpush>/assetst/DroidSans.ttf"
+)
+
+
+
+# Додайте копіювання звукових файлів:
+add_custom_command(TARGET pushpush POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:pushpush>/assetst/sounds"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${PROJECT_SOURCE_DIR}/assetst/sounds/win.wav"
+        "$<TARGET_FILE_DIR:pushpush>/assetst/sounds/win.wav"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${PROJECT_SOURCE_DIR}/assetst/sounds/lose.wav"
+        "$<TARGET_FILE_DIR:pushpush>/assetst/sounds/lose.wav"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${PROJECT_SOURCE_DIR}/assetst/sounds/jump.wav"
+        "$<TARGET_FILE_DIR:pushpush>/assetst/sounds/jump.wav"
 )
 
 # Копіювання рівнів, якщо вони існують

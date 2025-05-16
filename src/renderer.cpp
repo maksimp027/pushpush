@@ -2,13 +2,14 @@
 #include "constants.h"
 #include "utils.h"
 #include <iostream>
+#include <cmath>
 
 using namespace std;
 
-Renderer::Renderer() : window(nullptr), renderer(nullptr), 
-                       titleFont(nullptr), menuFont(nullptr), 
-                       smallFont(nullptr), gameFont(nullptr),
-                       isFullscreen(false), cellSize(0), offsetX(0), offsetY(0) {
+Renderer::Renderer() : window(nullptr), renderer(nullptr),
+titleFont(nullptr), menuFont(nullptr),
+smallFont(nullptr), gameFont(nullptr),
+isFullscreen(false), cellSize(0), offsetX(0), offsetY(0) {
     // Ініціалізація кольорів
     wallColor = { 150, 150, 150, 255 };       // Колір стін - сірий
     emptyColor = { 244, 244, 240, 255 };      // Колір порожніх клітин - білий
@@ -26,6 +27,8 @@ Renderer::~Renderer() {
 }
 
 bool Renderer::initialize(const std::string& fontPath) {
+    cout << "Initializing renderer..." << endl;
+
     // Створення вікна з правильними параметрами для SDL3
     window = SDL_CreateWindow("Push-Push Game", WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE);
     if (!window) {
@@ -39,6 +42,8 @@ bool Renderer::initialize(const std::string& fontPath) {
         SDL_DestroyWindow(window);
         return false;
     }
+
+    cout << "Loading fonts from: " << fontPath << endl;
 
     // Завантаження шрифтів різних розмірів
     titleFont = TTF_OpenFont(fontPath.c_str(), 60);  // Великий шрифт для заголовка (60px)
@@ -61,21 +66,27 @@ bool Renderer::initialize(const std::string& fontPath) {
     }
 
     gameFont = menuFont; // Використовуємо меню шрифт як основний для гри
+
+    cout << "Renderer initialized successfully" << endl;
     return true;
 }
 
 void Renderer::cleanup() {
+    cout << "Cleaning up renderer resources..." << endl;
+
     if (titleFont) TTF_CloseFont(titleFont);
     if (menuFont) TTF_CloseFont(menuFont);
     if (smallFont) TTF_CloseFont(smallFont);
     if (renderer) SDL_DestroyRenderer(renderer);
     if (window) SDL_DestroyWindow(window);
-    
+
     titleFont = nullptr;
     menuFont = nullptr;
     smallFont = nullptr;
     renderer = nullptr;
     window = nullptr;
+
+    cout << "Renderer cleanup complete" << endl;
 }
 
 SDL_Texture* Renderer::createTextTexture(const std::string& text, SDL_Color color, TTF_Font* font) {
@@ -84,7 +95,6 @@ SDL_Texture* Renderer::createTextTexture(const std::string& text, SDL_Color colo
         return nullptr;
     }
 
-    // Створюємо поверхню з тексту (виправлений виклик для SDL3)
     SDL_Surface* textSurface = TTF_RenderText_Blended(font, text.c_str(), text.length(), color);
     if (!textSurface) {
         cerr << "Failed to render text: " << SDL_GetError() << endl;
@@ -141,11 +151,15 @@ void Renderer::calculateScaling(int levelWidth, int levelHeight) {
     // Обчислюємо відступи для центрування карти
     offsetX = (windowWidth - totalWidth) / 2;
     offsetY = (windowHeight - (float)GAME_FIELD_HEIGHT) / 2;
+
+    cout << "Recalculated scaling: cell size = " << cellSize
+        << ", offset = (" << offsetX << ", " << offsetY << ")" << endl;
 }
 
 void Renderer::toggleFullscreen() {
     isFullscreen = !isFullscreen;
     SDL_SetWindowFullscreen(window, isFullscreen);
+    cout << "Fullscreen toggled: " << (isFullscreen ? "ON" : "OFF") << endl;
 }
 
 void Renderer::drawMainMenu(int selectedMenuItem, const std::string menuItems[]) {
@@ -402,11 +416,35 @@ void Renderer::drawLevelSelect(const std::vector<std::string>& levelFiles, int s
     SDL_RenderPresent(renderer);
 }
 
-void Renderer::drawLevel(const Level& level) {
-    // Змінюємо колір фону на той самий, що й порожні клітинки
+void Renderer::drawTrail(const std::vector<Level::TrailPoint>& trail, Uint32 currentTime) {
+    // Малюємо слід гравця
+    for (const auto& point : trail) {
+        SDL_FRect cellRect;
+        cellRect.x = offsetX + point.x * cellSize;
+        cellRect.y = offsetY + point.y * cellSize;
+        cellRect.w = cellSize;
+        cellRect.h = cellSize;
+
+        // Розраховуємо прозорість на основі часу існування сліду
+        float lifetime = (float)(currentTime - point.timeCreated) / TRAIL_LIFETIME;
+        Uint8 alpha = static_cast<Uint8>(255 * (1.0f - lifetime));
+
+        // Малюємо слід світло-жовтого кольору з прозорістю
+        SDL_SetRenderDrawColor(renderer, startColor.r, startColor.g, startColor.b, alpha);
+        SDL_RenderFillRect(renderer, &cellRect);
+    }
+}
+
+void Renderer::drawLevelWin(const Level& level) {
+    // Фон - такий же як для звичайного рівня
     SDL_SetRenderDrawColor(renderer, emptyColor.r, emptyColor.g, emptyColor.b, emptyColor.a);
     SDL_RenderClear(renderer);
 
+    // Отримуємо розміри вікна
+    int windowWidth, windowHeight;
+    SDL_GetWindowSize(window, &windowWidth, &windowHeight);
+
+    // Малюємо рівень з анімацією "заливки" синім кольором
     for (int i = 0; i < level.getHeight(); i++) {
         for (int j = 0; j < level.getWidth(); j++) {
             SDL_FRect cellRect;
@@ -415,13 +453,31 @@ void Renderer::drawLevel(const Level& level) {
             cellRect.w = cellSize;
             cellRect.h = cellSize;
 
-            if (i == level.getPlayerY() && j == level.getPlayerX()) {
-                // Гравець пріоритетніший від клітинки
-                SDL_SetRenderDrawColor(renderer, playerColor.r, playerColor.g, playerColor.b, playerColor.a);
+            // Рахуємо відстань від клітинки до фінішу (де стоїть гравець)
+            int distX = j - level.getPlayerX();
+            int distY = i - level.getPlayerY();
+            int distance = static_cast<int>(sqrt(distX * distX + distY * distY));
+
+            if (distance <= level.getAnimationRadius()) {
+                // Клітинки всередині радіусу анімації стають синіми
+                if (level.getTileAt(j, i) == WALL) {
+                    // Стіни - темно-сині
+                    SDL_SetRenderDrawColor(renderer, 0, 0, 150, 255);
+                }
+                else {
+                    // Шлях - світло-синій
+                    SDL_SetRenderDrawColor(renderer, 100, 150, 255, 255);
+                }
             }
             else {
-                char tile = level.getTileAt(j, i);
-                switch(tile) {
+                // Інші клітинки звичайні
+                if (i == level.getPlayerY() && j == level.getPlayerX()) {
+                    // Гравець
+                    SDL_SetRenderDrawColor(renderer, playerColor.r, playerColor.g, playerColor.b, playerColor.a);
+                }
+                else {
+                    char tile = level.getTileAt(j, i);
+                    switch (tile) {
                     case WALL:
                         SDL_SetRenderDrawColor(renderer, wallColor.r, wallColor.g, wallColor.b, wallColor.a);
                         break;
@@ -439,12 +495,191 @@ void Renderer::drawLevel(const Level& level) {
                         break;
                     default:
                         SDL_SetRenderDrawColor(renderer, emptyColor.r, emptyColor.g, emptyColor.b, emptyColor.a);
+                    }
                 }
             }
 
             SDL_RenderFillRect(renderer, &cellRect);
         }
     }
+
+    // Текст перемоги
+    std::string winText = "You Win!";
+    renderText(winText, (windowWidth - 200) / 2, offsetY - 40, finishColor, menuFont);
+
+    // Інструкції
+    renderText("R - Restart   ESC - Menu   F - Fullscreen", 20, WINDOW_HEIGHT - 40, wallColor, smallFont);
+
+    SDL_RenderPresent(renderer);
+}
+
+void Renderer::drawLevelLose(const Level& level) {
+    // Аналогічно drawLevelWin, але з червоним кольором
+    SDL_SetRenderDrawColor(renderer, emptyColor.r, emptyColor.g, emptyColor.b, emptyColor.a);
+    SDL_RenderClear(renderer);
+
+    // Отримуємо розміри вікна
+    int windowWidth, windowHeight;
+    SDL_GetWindowSize(window, &windowWidth, &windowHeight);
+
+    // Малюємо рівень з анімацією "заливки" червоним кольором
+    for (int i = 0; i < level.getHeight(); i++) {
+        for (int j = 0; j < level.getWidth(); j++) {
+            SDL_FRect cellRect;
+            cellRect.x = offsetX + j * cellSize;
+            cellRect.y = offsetY + i * cellSize;
+            cellRect.w = cellSize;
+            cellRect.h = cellSize;
+
+            // Рахуємо відстань від клітинки до пастки (де стоїть гравець)
+            int distX = j - level.getPlayerX();
+            int distY = i - level.getPlayerY();
+            int distance = static_cast<int>(sqrt(distX * distX + distY * distY));
+
+            if (distance <= level.getAnimationRadius()) {
+                // Клітинки всередині радіусу анімації стають червоними
+                if (level.getTileAt(j, i) == WALL) {
+                    // Стіни - темно-червоні
+                    SDL_SetRenderDrawColor(renderer, 150, 0, 0, 255);
+                }
+                else {
+                    // Шлях - світло-червоний
+                    SDL_SetRenderDrawColor(renderer, 255, 100, 100, 255);
+                }
+            }
+            else {
+                // Інші клітинки звичайні
+                if (i == level.getPlayerY() && j == level.getPlayerX()) {
+                    // Гравець
+                    SDL_SetRenderDrawColor(renderer, playerColor.r, playerColor.g, playerColor.b, playerColor.a);
+                }
+                else {
+                    char tile = level.getTileAt(j, i);
+                    switch (tile) {
+                    case WALL:
+                        SDL_SetRenderDrawColor(renderer, wallColor.r, wallColor.g, wallColor.b, wallColor.a);
+                        break;
+                    case EMPTY:
+                        SDL_SetRenderDrawColor(renderer, emptyColor.r, emptyColor.g, emptyColor.b, emptyColor.a);
+                        break;
+                    case TRAP:
+                        SDL_SetRenderDrawColor(renderer, trapColor.r, trapColor.g, trapColor.b, trapColor.a);
+                        break;
+                    case FINISH:
+                        SDL_SetRenderDrawColor(renderer, finishColor.r, finishColor.g, finishColor.b, finishColor.a);
+                        break;
+                    case START:
+                        SDL_SetRenderDrawColor(renderer, startColor.r, startColor.g, startColor.b, startColor.a);
+                        break;
+                    default:
+                        SDL_SetRenderDrawColor(renderer, emptyColor.r, emptyColor.g, emptyColor.b, emptyColor.a);
+                    }
+                }
+            }
+
+            SDL_RenderFillRect(renderer, &cellRect);
+        }
+    }
+
+    // Текст поразки
+    std::string loseText = "You Lose!";
+    renderText(loseText, (windowWidth - 200) / 2, offsetY - 40, trapColor, menuFont);
+
+    // Інструкції
+    renderText("R - Restart   ESC - Menu   F - Fullscreen", 20, WINDOW_HEIGHT - 40, wallColor, smallFont);
+
+    SDL_RenderPresent(renderer);
+}
+
+void Renderer::drawLevel(const Level& level) {
+    // Якщо рівень завершено або програно - відображаємо відповідний екран
+    if (level.isLevelFinished()) {
+        drawLevelWin(level);
+        return;
+    }
+    else if (level.isLevelFailed()) {
+        drawLevelLose(level);
+        return;
+    }
+
+    // Звичайне відображення рівня
+    SDL_SetRenderDrawColor(renderer, emptyColor.r, emptyColor.g, emptyColor.b, emptyColor.a);
+    SDL_RenderClear(renderer);
+
+    // Отримуємо розміри вікна
+    int windowWidth, windowHeight;
+    SDL_GetWindowSize(window, &windowWidth, &windowHeight);
+
+    // Спочатку малюємо слід
+    Uint32 currentTime = SDL_GetTicks();
+    drawTrail(level.getTrail(), currentTime);
+
+    // Потім малюємо сам рівень
+    for (int i = 0; i < level.getHeight(); i++) {
+        for (int j = 0; j < level.getWidth(); j++) {
+            // Перевіряємо, чи є ця клітинка частиною сліду
+            bool isPartOfTrail = false;
+            for (const auto& point : level.getTrail()) {
+                if (point.x == j && point.y == i) {
+                    isPartOfTrail = true;
+                    break;
+                }
+            }
+
+            // Якщо це не частина сліду, малюємо клітинку
+            if (!isPartOfTrail) {
+                SDL_FRect cellRect;
+                cellRect.x = offsetX + j * cellSize;
+                cellRect.y = offsetY + i * cellSize;
+                cellRect.w = cellSize;
+                cellRect.h = cellSize;
+
+                if (i == level.getPlayerY() && j == level.getPlayerX()) {
+                    // Гравець пріоритетніший від клітинки
+                    SDL_SetRenderDrawColor(renderer, playerColor.r, playerColor.g, playerColor.b, playerColor.a);
+                }
+                else {
+                    char tile = level.getTileAt(j, i);
+                    switch (tile) {
+                    case WALL:
+                        SDL_SetRenderDrawColor(renderer, wallColor.r, wallColor.g, wallColor.b, wallColor.a);
+                        break;
+                    case EMPTY:
+                        SDL_SetRenderDrawColor(renderer, emptyColor.r, emptyColor.g, emptyColor.b, emptyColor.a);
+                        break;
+                    case TRAP:
+                        SDL_SetRenderDrawColor(renderer, trapColor.r, trapColor.g, trapColor.b, trapColor.a);
+                        break;
+                    case FINISH:
+                        SDL_SetRenderDrawColor(renderer, finishColor.r, finishColor.g, finishColor.b, finishColor.a);
+                        break;
+                    case START:
+                        SDL_SetRenderDrawColor(renderer, startColor.r, startColor.g, startColor.b, startColor.a);
+                        break;
+                    default:
+                        SDL_SetRenderDrawColor(renderer, emptyColor.r, emptyColor.g, emptyColor.b, emptyColor.a);
+                    }
+                }
+
+                SDL_RenderFillRect(renderer, &cellRect);
+            }
+        }
+    }
+
+    // Малюємо гравця зверху всього
+    SDL_FRect playerRect;
+    playerRect.x = offsetX + level.getPlayerX() * cellSize;
+    playerRect.y = offsetY + level.getPlayerY() * cellSize;
+    playerRect.w = cellSize;
+    playerRect.h = cellSize;
+
+    SDL_SetRenderDrawColor(renderer, playerColor.r, playerColor.g, playerColor.b, playerColor.a);
+    SDL_RenderFillRect(renderer, &playerRect);
+
+    // Інформація про рівень
+    std::string levelName = "Level: ";
+    levelName += std::to_string(level.getWidth()) + "x" + std::to_string(level.getHeight());
+    renderText(levelName, 20, 20, wallColor, menuFont);
 
     // Інструкції
     renderText("R - Restart   ESC - Menu   F - Fullscreen", 20, WINDOW_HEIGHT - 40, wallColor, smallFont);

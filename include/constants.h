@@ -9,7 +9,9 @@ const char WALL = 'x', EMPTY = '_', START = 's', FINISH = 'f', TRAP = 'd', PLAYE
 enum GameState {
     MENU,
     LEVEL_SELECT,
-    GAME_PLAYING
+    GAME_PLAYING,
+    GAME_WIN,
+    GAME_LOSE
 };
 
 // Розміри вікна
@@ -24,3 +26,7 @@ const int MAX_VISIBLE_LEVELS = 10;
 
 // Кількість елементів меню
 const int MENU_ITEMS = 4;
+
+// Часові константи для анімацій (у мілісекундах)
+const int ANIMATION_STEP_TIME = 200;
+const int TRAIL_LIFETIME = 200;
