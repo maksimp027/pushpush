@@ -1,4 +1,5 @@
 #include "game.h"
+#include "creator.h"
 #include <iostream>
 
 using namespace std;
@@ -12,12 +13,12 @@ Game::Game() :
     
     // Ініціалізуємо пункти меню
     menuItems[0] = "Select Level";
-    menuItems[1] = "Create Level (Not Avaliabble)";
+    menuItems[1] = "Create Level";
     menuItems[2] = "Generate Level (Not Avaliabble)";
     menuItems[3] = "Settings (Not Avaliabble)";
     
     // Встановлюємо шляхи
-    fontPath = "C:\\Users\\Maxim\\Desktop\\iasa\\icn bin ein programist\\KURSACH\\pushpush\\assetst\\DroidSans.ttf";
+    fontPath = "C:\\Users\\Maxim\\Desktop\\iasa\\icn bin ein programist\\KURSACH\\pushpush\\assetst\\DroidSans-Bold.ttf";
     levelsPath = "C:\\Users\\Maxim\\Desktop\\iasa\\icn bin ein programist\\KURSACH\\pushpush\\assetst\\levels";
 }
 
@@ -65,6 +66,9 @@ bool Game::initialize() {
         audioManager.loadSound("win", "C:\\Users\\Maxim\\Desktop\\iasa\\icn bin ein programist\\KURSACH\\pushpush\\assetst\\sounds\\win.wav");
         audioManager.loadSound("lose", "C:\\Users\\Maxim\\Desktop\\iasa\\icn bin ein programist\\KURSACH\\pushpush\\assetst\\sounds\\lose.wav");
         audioManager.loadSound("jump", "C:\\Users\\Maxim\\Desktop\\iasa\\icn bin ein programist\\KURSACH\\pushpush\\assetst\\sounds\\jump.wav");
+        audioManager.loadSound("scroll", "C:\\Users\\Maxim\\Desktop\\iasa\\icn bin ein programist\\KURSACH\\pushpush\\assetst\\sounds\\scroll.wav");
+        audioManager.loadSound("chose", "C:\\Users\\Maxim\\Desktop\\iasa\\icn bin ein programist\\KURSACH\\pushpush\\assetst\\sounds\\chose.wav");
+
     }
     // Завантажуємо список рівнів
     refreshLevelList();
@@ -106,20 +110,33 @@ void Game::loadSelectedLevel() {
     }
 }
 
+// Робота з головним меню
 void Game::handleMainMenuInput(SDL_Event& e) {
     if (e.type == SDL_EVENT_KEY_DOWN) {
         switch (e.key.key) {
         case SDLK_UP:
             selectedMenuItem = (selectedMenuItem - 1 + MENU_ITEMS) % MENU_ITEMS;
+            audioManager.playSound("scroll"); // Play scroll sound
             break;
         case SDLK_DOWN:
             selectedMenuItem = (selectedMenuItem + 1) % MENU_ITEMS;
+            audioManager.playSound("scroll"); // Play scroll sound
             break;
         case SDLK_RETURN: case SDLK_SPACE:
+            audioManager.playSound("chose"); // Play chose sound
             // Обробка вибору пункту меню
             if (selectedMenuItem == 0) { // Вибрати рівень
                 currentState = LEVEL_SELECT;
                 refreshLevelList(); // Оновлюємо список рівнів
+            }
+            else if (selectedMenuItem == 1) { // Create Level
+                // Create a new level creator and run it
+                LevelCreator creator(renderer, levelsPath);
+                if (creator.initialize()) {
+                    creator.run();
+                    // After creating a level, refresh the level list
+                    refreshLevelList();
+                }
             }
             break;
         case SDLK_ESCAPE:
@@ -131,20 +148,24 @@ void Game::handleMainMenuInput(SDL_Event& e) {
     }
 }
 
+// Робота з вибором рівня
 void Game::handleLevelSelectInput(SDL_Event& e) {
     if (e.type == SDL_EVENT_KEY_DOWN) {
         switch (e.key.key) {
         case SDLK_UP:
             if (!levelFiles.empty()) {
                 selectedLevelIndex = (selectedLevelIndex - 1 + levelFiles.size()) % levelFiles.size();
+                audioManager.playSound("scroll"); // Play scroll sound
             }
             break;
         case SDLK_DOWN:
             if (!levelFiles.empty()) {
                 selectedLevelIndex = (selectedLevelIndex + 1) % levelFiles.size();
+                audioManager.playSound("scroll"); // Play scroll sound
             }
             break;
         case SDLK_RETURN: case SDLK_SPACE:
+            audioManager.playSound("chose"); // Play chose sound
             // Завантаження вибраного рівня
             loadSelectedLevel();
             break;
@@ -155,6 +176,7 @@ void Game::handleLevelSelectInput(SDL_Event& e) {
     }
 }
 
+// Обробка введення під час гри
 void Game::handleGameInput(SDL_Event& e) {
     if (e.type == SDL_EVENT_KEY_DOWN) {
         if (currentLevel->isLevelFinished() || currentLevel->isLevelFailed()) {
@@ -224,6 +246,7 @@ void Game::handleGameInput(SDL_Event& e) {
     }
 }
 
+// Обробка подій SDL
 void Game::handleEvents() {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
@@ -251,6 +274,7 @@ void Game::handleEvents() {
     }
 }
 
+// Основний цикл гри
 void Game::run() {
     bool quit = false;
 

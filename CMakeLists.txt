@@ -31,6 +31,7 @@ set(SOURCES
     src/renderer.cpp
     src/utils.cpp
     src/audio.cpp
+    src/creator.cpp
 )
 
 # Додайте заголовочний файл аудіо:
@@ -41,6 +42,7 @@ set(HEADERS
     include/renderer.h
     include/utils.h
     include/audio.h
+    include/creator.h
 )
 
 # Налаштування бібліотек SDL3
@@ -49,7 +51,7 @@ set(SDL3_TTF_LIB_DIR "${PROJECT_SOURCE_DIR}/external/SDL3_ttf/lib/x64")
 set(SDL3_IMAGE_LIB_DIR "${PROJECT_SOURCE_DIR}/external/SDL3_image/lib/x64")
 
 # Створення виконуваного файлу
-add_executable(pushpush ${SOURCES} ${HEADERS} "include/audio.h")
+add_executable(pushpush ${SOURCES} ${HEADERS} "include/audio.h" "include/creator.h" "src/creator.cpp")
 
 # Лінкування бібліотек SDL3
 target_link_libraries(pushpush
@@ -85,9 +87,10 @@ add_custom_command(TARGET pushpush POST_BUILD
 # Копіювання шрифту
 add_custom_command(TARGET pushpush POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${PROJECT_SOURCE_DIR}/assetst/DroidSans.ttf"
-        "$<TARGET_FILE_DIR:pushpush>/assetst/DroidSans.ttf"
+        "${PROJECT_SOURCE_DIR}/assetst/DroidSans-Bold.ttf"
+        "$<TARGET_FILE_DIR:pushpush>/assetst/DroidSans-Bold.ttf"
 )
+
 
 
 
@@ -103,7 +106,14 @@ add_custom_command(TARGET pushpush POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${PROJECT_SOURCE_DIR}/assetst/sounds/jump.wav"
         "$<TARGET_FILE_DIR:pushpush>/assetst/sounds/jump.wav"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${PROJECT_SOURCE_DIR}/assetst/sounds/scroll.wav"
+        "$<TARGET_FILE_DIR:pushpush>/assetst/sounds/scroll.wav"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${PROJECT_SOURCE_DIR}/assetst/sounds/chose.wav"
+        "$<TARGET_FILE_DIR:pushpush>/assetst/sounds/chose.wav"
 )
+
 
 # Копіювання рівнів, якщо вони існують
 if(EXISTS "${PROJECT_SOURCE_DIR}/assetst/levels")

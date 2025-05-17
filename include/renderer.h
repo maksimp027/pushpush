@@ -34,11 +34,12 @@ private:
     SDL_Color menuItemColor;
     SDL_Color selectedTextColor;
 
-    // Функції для рендерингу тексту
     SDL_Texture* createTextTexture(const std::string& text, SDL_Color color, TTF_Font* font);
-    void renderText(const std::string& text, int x, int y, SDL_Color color, TTF_Font* font);
 
 public:
+    // Move this line from private to public section
+    void renderText(const std::string& text, int x, int y, SDL_Color color, TTF_Font* font);
+
     Renderer();
     ~Renderer();
 
@@ -62,4 +63,11 @@ public:
     // Отримуємо вікно і рендерер
     SDL_Window* getWindow() const { return window; }
     SDL_Renderer* getRenderer() const { return renderer; }
+    float getCellSize() const { return cellSize; }
+    float getOffsetX() const { return offsetX; }
+    float getOffsetY() const { return offsetY; }
+    TTF_Font* getSmallFont() const
+    {
+        return smallFont;
+    }
 };
